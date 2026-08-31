@@ -1,0 +1,4 @@
+# ComplyForge — generation toolchain
+# Python 3.10+ recommended
+openpyxl>=3.1
+matplotlib>=3.7
