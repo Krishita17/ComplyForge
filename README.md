@@ -55,11 +55,25 @@ workbook, charts, and report.)*
 | Deliverable | File | What it demonstrates |
 |---|---|---|
 | 🧮 **Control Assessment Workbook** *(centerpiece)* | [`control_assessment_workbook.xlsx`](control_assessment_workbook.xlsx) | All 93 controls with status, owner, evidence, gap, remediation, risk & NIST crosswalk; plus SoA, summary charts, and a ranked gap register. |
+| 🛡️ **Risk Register** | [`risk_register.xlsx`](risk_register.xlsx) | ISO 27001 Clause 6.1.2/6.1.3 risk assessment — 20 risks scored inherent→residual on a 5×5 matrix, with treatment decisions and owners. |
+| 📈 **POA&M** | [`reports/poam.xlsx`](reports/poam.xlsx) | Plan of Action & Milestones — all 32 weaknesses tracked to closure (NIST/FedRAMP style). |
 | 📋 **Evidence Collection Tracker** | [`evidence_tracker.xlsx`](evidence_tracker.xlsx) | 87 evidence items mapped to controls, owners, and collection/submission status — the audit-lead coordination artifact. |
 | 📄 **Sample SSP Section** | [`ssp/sample_ssp_section.md`](ssp/sample_ssp_section.md) | System characterization, authorization boundary, and full control-implementation narratives (NIST 800-18 / FedRAMP style). |
 | 📊 **Audit Readiness Report** | [`reports/audit_readiness_report.md`](reports/audit_readiness_report.md) | Executive-facing posture, top gaps by risk, and a remediation roadmap. |
+| ✅ **ISMS Clauses 4–10 Conformance** | [`docs/isms_clauses_conformance.md`](docs/isms_clauses_conformance.md) | The management-system requirements auditors check *beyond* Annex A. |
+| 🗂️ **Documented-Information Index** | [`docs/documented_information_index.md`](docs/documented_information_index.md) | The ISO document register (mandatory + supporting documents, owners, status). |
 | 🏗️ **System Profile** | [`data/system_profile.md`](data/system_profile.md) | The fictional SaaS: architecture & data-flow diagrams, data sensitivity, shared-responsibility split. |
 | 🧭 **Methodology** | [`docs/methodology.md`](docs/methodology.md) | Framework versions, scope, rating scales, scoring math, applicability decisions. |
+| 🔗 **Machine-readable exports** | [`data/`](data/) | `controls_export.csv`, `crosswalk.csv`, `risk_register.csv`, `assessment_summary.json`. |
+
+### 🖥️ Interactive dashboard
+
+An interactive, filterable compliance dashboard ([`dashboard/index.html`](dashboard/index.html))
+renders the whole assessment as a single scannable page — KPI tiles, per-family scores,
+status mix, gap severity, a searchable/sortable 93-control register (click a gapped row
+for the finding and remediation), and the 5×5 risk matrix. Light/dark themed, zero
+dependencies, generated from the same source of truth. Open it locally, or publish it as
+a shareable page.
 
 ## The figures
 
@@ -67,6 +81,8 @@ workbook, charts, and report.)*
 |---|---|---|
 | ![status](figures/02_status_breakdown.png) | ![heatmap](figures/03_gap_severity_heatmap.png) | ![gauge](figures/05_readiness_gauge.png) |
 | Status breakdown | Gap severity heatmap | Readiness gauge |
+| ![risk matrix](figures/06_risk_matrix_inherent.png) | ![risk reduction](figures/07_risk_reduction.png) | ![family](figures/01_compliance_by_family.png) |
+| Inherent 5×5 risk matrix | Inherent→residual risk reduction | Compliance by family |
 
 <p align="center"><img src="figures/04_remediation_roadmap.png" width="80%" alt="Remediation roadmap"/></p>
 
@@ -103,42 +119,61 @@ ComplyForge/
 ├── README.md                          ← you are here
 ├── LICENSE
 ├── control_assessment_workbook.xlsx   ← the centerpiece (6 tabs)
+├── risk_register.xlsx                 ← ISO 27001 risk assessment (3 tabs)
 ├── evidence_tracker.xlsx              ← evidence coordination (2 tabs)
+├── dashboard/
+│   └── index.html                     ← interactive compliance dashboard
 ├── ssp/
 │   └── sample_ssp_section.md          ← System Security Plan section
 ├── reports/
-│   └── audit_readiness_report.md      ← executive report
+│   ├── audit_readiness_report.md      ← executive report
+│   └── poam.xlsx                      ← Plan of Action & Milestones
 ├── data/
-│   └── system_profile.md              ← fictional SaaS + architecture diagrams
+│   ├── system_profile.md              ← fictional SaaS + architecture diagrams
+│   ├── controls_export.csv            ← machine-readable exports …
+│   ├── crosswalk.csv
+│   ├── risk_register.csv
+│   └── assessment_summary.json        ← drives the dashboard
 ├── docs/
-│   └── methodology.md                 ← framework, scope, scoring, assumptions
-├── figures/                           ← generated charts (PNG)
+│   ├── methodology.md                 ← framework, scope, scoring, assumptions
+│   ├── isms_clauses_conformance.md    ← ISMS Clauses 4–10 checklist
+│   └── documented_information_index.md← ISO document register
+├── figures/                           ← generated charts (PNG ×7)
+├── .github/workflows/build.yml        ← CI: rebuild & validate on push
 └── build/                             ← single-source-of-truth + generators
     ├── controls_data.py               ← all 93 controls (edit here)
+    ├── risk_data.py                   ← the 20 risks (edit here)
     ├── compute_stats.py               ← statistics used everywhere
-    ├── build_workbook.py
-    ├── build_tracker.py
-    └── build_figures.py
+    ├── build_workbook.py   · build_tracker.py   · build_figures.py
+    ├── build_risk_register.py · build_poam.py   · build_dashboard.py
+    └── export_data.py
 ```
 
 ## Reproduce / regenerate everything
 
-The workbook, tracker, and charts are all generated from
-[`build/controls_data.py`](build/controls_data.py) — a single source of truth.
+Every artifact is generated from two source-of-truth files —
+[`build/controls_data.py`](build/controls_data.py) (the 93 controls) and
+[`build/risk_data.py`](build/risk_data.py) (the 20 risks). The same `.github` CI runs
+this on every push.
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
 cd build
-python compute_stats.py      # print the headline numbers
-python build_figures.py      # -> figures/*.png
-python build_workbook.py     # -> control_assessment_workbook.xlsx
-python build_tracker.py      # -> evidence_tracker.xlsx
+python compute_stats.py        # print the headline numbers
+python build_figures.py        # -> figures/*.png  (7 charts)
+python build_workbook.py       # -> control_assessment_workbook.xlsx
+python build_tracker.py        # -> evidence_tracker.xlsx
+python build_risk_register.py  # -> risk_register.xlsx
+python build_poam.py           # -> reports/poam.xlsx
+python build_dashboard.py      # -> dashboard/index.html
+python export_data.py          # -> data/*.csv + assessment_summary.json
 ```
 
-Edit a control's status or evidence in `controls_data.py`, re-run the scripts, and the
-workbook, tracker, charts, and report statistics all update consistently.
+Edit a control's status (or a risk's score), re-run the scripts, and the workbook, risk
+register, POA&M, tracker, charts, dashboard, and report statistics all update
+consistently — no number can drift.
 
 ## Data, sources & disclaimer
 

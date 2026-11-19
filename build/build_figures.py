@@ -16,6 +16,7 @@ import compute_stats as S
 from controls_data import (
     CONTROLS, THEME_ORDER, RISK_ORDER, IMPL, PART, NOIM, NA, SYSTEM,
 )
+from risk_data import RISKS, band
 
 FIG_DIR = os.path.join(os.path.dirname(__file__), "..", "figures")
 os.makedirs(FIG_DIR, exist_ok=True)
@@ -220,10 +221,90 @@ def fig_readiness_gauge():
     _save(fig, "05_readiness_gauge.png")
 
 
+# 6) Inherent risk 5x5 matrix ------------------------------------------------
+def fig_risk_matrix():
+    import numpy as np
+    band_color = {"Low": "#2E8B7A", "Medium": "#E0A200", "High": "#C0392B",
+                  "Critical": "#7B1E1E"}
+    # cell background by score band
+    grid = np.zeros((5, 5))
+    for L in range(1, 6):
+        for I in range(1, 6):
+            grid[L - 1][I - 1] = L * I
+    fig, ax = plt.subplots(figsize=(7.6, 6.4))
+    for L in range(1, 6):
+        for I in range(1, 6):
+            s = L * I
+            ax.add_patch(plt.Rectangle((I - 0.5, L - 0.5), 1, 1,
+                         facecolor=band_color[band(s)], alpha=0.30,
+                         edgecolor="white", lw=2, zorder=1))
+    # place risks (jitter when sharing a cell)
+    from collections import defaultdict
+    cell = defaultdict(list)
+    for r in RISKS:
+        cell[(r["l_inh"], r["i_inh"])].append(r["id"])
+    for (L, I), ids in cell.items():
+        n = len(ids)
+        for k, rid in enumerate(ids):
+            dx = (k - (n - 1) / 2) * 0.26
+            ax.scatter(I + dx, L, s=560, color=band_color[band(L * I)],
+                       edgecolor="white", lw=1.5, zorder=3)
+            ax.text(I + dx, L, rid.replace("R-", ""), ha="center", va="center",
+                    color="white", fontsize=7.5, fontweight="bold", zorder=4)
+    ax.set_xlim(0.5, 5.5); ax.set_ylim(0.5, 5.5)
+    ax.set_xticks(range(1, 6)); ax.set_yticks(range(1, 6))
+    ax.set_xticklabels(["1\nInsig.", "2\nMinor", "3\nModerate", "4\nMajor", "5\nSevere"])
+    ax.set_yticklabels(["1 Rare", "2 Unlikely", "3 Possible", "4 Likely", "5 Almost\ncertain"])
+    ax.set_xlabel("Impact", fontweight="bold")
+    ax.set_ylabel("Likelihood", fontweight="bold")
+    ax.set_title("Inherent risk matrix (5×5) — numbers are Risk IDs (R-xx)")
+    from matplotlib.patches import Patch
+    ax.legend(handles=[Patch(facecolor=band_color[b], alpha=0.5, label=b)
+                       for b in ["Low", "Medium", "High", "Critical"]],
+              loc="upper left", fontsize=8, title="Band")
+    ax.set_aspect("equal")
+    _footer(fig)
+    _save(fig, "06_risk_matrix_inherent.png")
+
+
+# 7) Inherent -> residual risk reduction -------------------------------------
+def fig_risk_reduction():
+    import numpy as np
+    order = sorted(RISKS, key=lambda r: -(r["l_inh"] * r["i_inh"]))
+    ids = [r["id"] for r in order]
+    inh = [r["l_inh"] * r["i_inh"] for r in order]
+    res = [r["l_res"] * r["i_res"] for r in order]
+    y = np.arange(len(order))
+    fig, ax = plt.subplots(figsize=(9.5, 8.2))
+    for i in range(len(order)):
+        ax.plot([res[i], inh[i]], [y[i], y[i]], color="#C9D2DC", lw=3, zorder=1)
+    ax.scatter(inh, y, s=90, color="#C0392B", label="Inherent (before controls)",
+               zorder=3, edgecolor="white")
+    ax.scatter(res, y, s=90, color="#2E8B7A", label="Residual (after controls)",
+               zorder=3, edgecolor="white")
+    ax.set_yticks(y)
+    ax.set_yticklabels([f"{r['id']}  {r['title'][:40]}" for r in order], fontsize=8)
+    ax.invert_yaxis()
+    ax.set_xlabel("Risk score (Likelihood × Impact)")
+    ax.set_xlim(0, 26)
+    for x, lbl, col in [(4.5, "Low", "#2E8B7A"), (9.5, "Med", "#E0A200"),
+                        (14.5, "High", "#C0392B")]:
+        ax.axvline(x, color=col, ls=":", lw=1, zorder=0)
+    ax.set_title("Risk reduction from current controls (inherent → residual)")
+    ax.legend(loc="lower right", fontsize=9)
+    ax.xaxis.grid(True, color=GRID, zorder=0); ax.set_axisbelow(True)
+    for sp in ("top", "right", "left"):
+        ax.spines[sp].set_visible(False)
+    _footer(fig)
+    _save(fig, "07_risk_reduction.png")
+
+
 if __name__ == "__main__":
     fig_compliance_by_family()
     fig_status_donut()
     fig_gap_heatmap()
     fig_roadmap()
     fig_readiness_gauge()
+    fig_risk_matrix()
+    fig_risk_reduction()
     print("All figures generated.")

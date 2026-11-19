@@ -1,0 +1,79 @@
+name: Build & validate ComplyForge package
+
+# Regenerates every artifact from the single source of truth (build/controls_data.py,
+# build/risk_data.py) and validates internal consistency on each push / PR.
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'build/**'
+      - '.github/workflows/build.yml'
+      - 'requirements.txt'
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Validate dataset integrity
+        working-directory: build
+        run: |
+          python - <<'PY'
+          from controls_data import CONTROLS
+          from risk_data import RISKS
+          assert len(CONTROLS) == 93, f"expected 93 controls, got {len(CONTROLS)}"
+          assert len({c['id'] for c in CONTROLS}) == 93, "duplicate control IDs"
+          assert len({r['id'] for r in RISKS}) == len(RISKS), "duplicate risk IDs"
+          valid_ids = {c['id'] for c in CONTROLS}
+          for r in RISKS:
+              for cid in r['controls']:
+                  assert cid in valid_ids, f"{r['id']} links unknown control {cid}"
+          print("Dataset integrity OK:", len(CONTROLS), "controls,", len(RISKS), "risks")
+          PY
+
+      - name: Print assessment statistics
+        working-directory: build
+        run: python compute_stats.py
+
+      - name: Regenerate all artifacts
+        working-directory: build
+        run: |
+          python build_figures.py
+          python build_workbook.py
+          python build_tracker.py
+          python build_risk_register.py
+          python build_poam.py
+          python export_data.py
+
+      - name: Confirm outputs exist
+        run: |
+          set -e
+          for f in control_assessment_workbook.xlsx evidence_tracker.xlsx \
+                   risk_register.xlsx reports/poam.xlsx \
+                   data/assessment_summary.json; do
+            test -f "$f" && echo "ok: $f" || { echo "MISSING: $f"; exit 1; }
+          done
+
+      - name: Upload regenerated package
+        uses: actions/upload-artifact@v4
+        with:
+          name: complyforge-package
+          path: |
+            *.xlsx
+            reports/*.xlsx
+            figures/*.png
+            data/*.csv
+            data/*.json
